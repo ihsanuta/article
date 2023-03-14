@@ -10,6 +10,11 @@ docker-compose up -d
 make migrate
 ```
 
+## running test
+```
+make tests
+```
+
 ## running application
 ```
 go run .
