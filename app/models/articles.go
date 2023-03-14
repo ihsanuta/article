@@ -11,6 +11,6 @@ type Article struct {
 }
 
 type ArticleParam struct {
-	Author string `param:"author" db:"author"`
-	Query  string `param:"query" db:"query"`
+	Author string `form:"author" param:"author" db:"author"`
+	Query  string `form:"query" param:"query" db:"query"`
 }

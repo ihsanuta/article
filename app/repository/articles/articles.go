@@ -2,6 +2,8 @@ package articles
 
 import (
 	"article/app/models"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -80,15 +82,14 @@ func (a *articles) getArticlesDB(param models.ArticleParam) ([]models.Article, e
 	}
 
 	if param.Query != "" && param.Author != "" {
-		pQuery := fmt.Sprintf("%" + param.Query + " %")
-		query = fmt.Sprintf("AND body LIKE '%s' AND title LIKE '%s'", pQuery, pQuery)
+		pQuery := fmt.Sprintf(`%s%s%s`, "%", param.Query, "%")
+		query = fmt.Sprintf("AND (body LIKE '%s' OR title LIKE '%s')", pQuery, pQuery)
 	} else if param.Query != "" && param.Author == "" {
-		pQuery := fmt.Sprintf("%" + param.Query + " %")
-		query = fmt.Sprintf("body LIKE '%s' AND title LIKE '%s'", pQuery, pQuery)
+		pQuery := fmt.Sprintf(`%s%s%s`, "%", param.Query, "%")
+		query = fmt.Sprintf("body LIKE '%s' OR title LIKE '%s'", pQuery, pQuery)
 	}
 
 	queries := fmt.Sprintf("SELECT * FROM articles %s %s %s", where, author, query)
-	log.Print(queries)
 
 	rows, err := a.db.Raw(queries).Rows()
 	if err != nil {
@@ -115,30 +116,33 @@ func (a *articles) getArticlesRedis(param models.ArticleParam) ([]models.Article
 	// serialize query param to string
 	rawKey, err := json.Marshal(param)
 	if err != nil {
-		return results, fmt.Errorf("Marshal cache param error : %s", err.Error())
+		return results, fmt.Errorf("marshal cache param error : %s", err.Error())
 	}
 
+	hashedResult := sha1.Sum(rawKey)
+	hexHashedResult := hex.EncodeToString(hashedResult[:])
+
 	// build key
-	key := fmt.Sprintf(ArticlesKeyByQuery, string(rawKey))
+	key := fmt.Sprintf(ArticlesKeyByQuery, hexHashedResult)
 	// paginationKey := fmt.Sprintf(APIKeyByQuery, string(rawKey))
 
 	resultsRaw, err := a.rd.Get(key).Result()
 	if err == redis.Nil {
 		return results, err
 	} else if err != nil {
-		return results, fmt.Errorf("Get cache articles error : %s", err.Error())
+		return results, fmt.Errorf("get cache articles error : %s", err.Error())
 	}
 
 	// decode merchant levels (encoded json)
 	var decJSON []byte
 	decJSON, err = snappy.Decode(decJSON, []byte(resultsRaw))
 	if err != nil {
-		return results, fmt.Errorf("Marshal cache param error : %s", err.Error())
+		return results, fmt.Errorf("marshal cache param error : %s", err.Error())
 	}
 
 	// unmarshaling returned byte
 	if err := json.Unmarshal(decJSON, &results); err != nil {
-		return results, fmt.Errorf("Marshal cache param error : %s", err.Error())
+		return results, fmt.Errorf("marshal cache param error : %s", err.Error())
 	}
 	return results, nil
 }
@@ -148,16 +152,19 @@ func (a *articles) setArticlesRedis(param models.ArticleParam, v []models.Articl
 	// serialize query param to string
 	rawKey, err := json.Marshal(param)
 	if err != nil {
-		return v, fmt.Errorf("Marshal cache param error : %s", err.Error())
+		return v, fmt.Errorf("marshal cache param error : %s", err.Error())
 	}
 
+	hashedResult := sha1.Sum(rawKey)
+	hexHashedResult := hex.EncodeToString(hashedResult[:])
+
 	// build key
-	key := fmt.Sprintf(ArticlesKeyByQuery, string(rawKey))
+	key := fmt.Sprintf(ArticlesKeyByQuery, hexHashedResult)
 	// paginationKey := fmt.Sprintf(APIKeyPaginationByQuery, string(rawKey))
 
 	rawJSON, err := json.Marshal(v)
 	if err != nil {
-		return v, fmt.Errorf("Marshal cache param error : %s", err.Error())
+		return v, fmt.Errorf("marshal cache param error : %s", err.Error())
 	}
 
 	// snappy compression on merchant statuses
@@ -166,7 +173,7 @@ func (a *articles) setArticlesRedis(param models.ArticleParam, v []models.Articl
 
 	// set key expiration
 	if err := a.rd.Set(key, encJSON, durationArticlesExpiration).Err(); err != nil {
-		return v, fmt.Errorf("Marshal cache param error : %s", err.Error())
+		return v, fmt.Errorf("marshal cache param error : %s", err.Error())
 	}
 
 	return v, nil
