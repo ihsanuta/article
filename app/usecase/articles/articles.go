@@ -1,3 +1,4 @@
+//go:generate mockery --name=Articles
 package articles
 
 import (

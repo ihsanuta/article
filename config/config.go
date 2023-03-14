@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -10,10 +9,7 @@ import (
 var AppConfig, MysqlConfig, RedisConfig map[string]interface{}
 
 func init() {
-	if godotenv.Load() != nil {
-		log.Fatal("Error loading .env file")
-		os.Exit(1)
-	}
+	godotenv.Load()
 	AppConfig = map[string]interface{}{
 		"port": os.Getenv("SERVER_PORT"),
 		"host": os.Getenv("SERVER_ADDRESS"),
